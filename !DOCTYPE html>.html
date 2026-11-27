@@ -1,0 +1,2524 @@
+!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ODS CONTRA-GALAGA 2030 - Edición Arcade 8-Bit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #030308;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 620px;
+            height: 100vh;
+            max-height: 920px;
+            background: #000006;
+            border-left: 3px solid #1e293b;
+            border-right: 3px solid #1e293b;
+            box-shadow: 0 0 50px rgba(239, 68, 68, 0.22), 0 0 80px rgba(16, 185, 129, 0.18);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            cursor: crosshair;
+        }
+        .crt-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.22) 50%
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 20;
+        }
+        /* Marco estilo Contra NES */
+        .contra-frame {
+            border: 4px solid;
+            border-image: linear-gradient(90deg, #db2777, #9333ea, #0284c7, #10b981) 1;
+            background: #05050d;
+        }
+        .contra-title {
+            background: linear-gradient(180deg, #fef08a 0%, #f97316 48%, #dc2626 52%, #7f1d1d 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 3px 0 #1e1b4b) drop-shadow(0 -1px 0 #ffffff);
+        }
+        .contra-subtitle {
+            background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 48%, #475569 52%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 0 #0f172a);
+        }
+        .arcade-btn {
+            background: #0f172a;
+            border: 3px solid #38bdf8;
+            color: #f8fafc;
+            padding: 10px 14px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 4px 0 #0284c7;
+            transition: transform 0.08s, background 0.15s;
+        }
+        .arcade-btn:hover {
+            background: #1e293b;
+            border-color: #facc15;
+            box-shadow: 0 4px 0 #ca8a04;
+            color: #fef08a;
+        }
+        .arcade-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #ca8a04;
+        }
+        .arcade-btn-red {
+            border-color: #ef4444;
+            box-shadow: 0 4px 0 #991b1b;
+            background: #450a0a;
+        }
+        .arcade-btn-red:hover {
+            background: #7f1d1d;
+            border-color: #facc15;
+            color: #fef08a;
+        }
+        .ship-card {
+            border: 2px solid #334155;
+            background: #090d16;
+            cursor: pointer;
+            transition: all 0.12s;
+        }
+        .ship-card:hover {
+            border-color: #94a3b8;
+            background: #111827;
+        }
+        .ship-card.selected {
+            border-color: #facc15;
+            background: #1e1b4b;
+            box-shadow: 0 0 12px rgba(250, 204, 21, 0.35);
+        }
+        .retro-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .retro-scroll::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        .retro-scroll::-webkit-scrollbar-thumb {
+            background: #ef4444;
+            border: 1px solid #000;
+        }
+        .blink {
+            animation: blinker 0.9s steps(2, start) infinite;
+        }
+        @keyframes blinker {
+            to { visibility: hidden; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div class="crt-overlay"></div>
+
+    <!-- HUD SUPERIOR ESTILO GALAGA + CONTRA WEAPON DISPLAY -->
+    <div id="hud" class="relative z-30 bg-black/95 border-b-2 border-slate-800 px-3 py-2 flex flex-col gap-1.5 text-[10px] sm:text-xs">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="text-red-500">1UP</div>
+                <div id="hud-score" class="text-white mt-0.5">000000</div>
+            </div>
+            <div class="text-center">
+                <div class="text-red-500">HIGH SCORE</div>
+                <div id="hud-highscore" class="text-yellow-300 mt-0.5">025000</div>
+            </div>
+            <div class="text-right flex items-center gap-2">
+                <div>
+                    <div class="text-cyan-400">NIVEL</div>
+                    <div id="hud-level" class="text-white mt-0.5">1/150</div>
+                </div>
+                <button id="btn-hangar-mid" title="Cambiar Nave" class="border-2 border-slate-600 hover:border-yellow-400 px-1.5 py-1.5 text-[9px] bg-slate-900 text-cyan-300 cursor-pointer">
+                    🚀
+                </button>
+                <button id="btn-sound" title="Activar/Silenciar Audio" class="border-2 border-slate-600 hover:border-yellow-400 px-1.5 py-1.5 text-[9px] bg-slate-900 text-yellow-300 cursor-pointer">
+                    🔊
+                </button>
+            </div>
+        </div>
+
+        <!-- Segunda fila HUD: ODS Activo + Arma Contra + Vidas -->
+        <div class="flex justify-between items-center pt-1 border-t border-slate-800/90 gap-1">
+            <div class="flex items-center gap-1.5 overflow-hidden flex-1">
+                <span id="hud-sdg-badge" class="px-1.5 py-0.5 text-[8px] font-bold text-white shrink-0" style="background:#E5243B;">ODS 1</span>
+                <span id="hud-sdg-name" class="text-[8px] sm:text-[9px] text-slate-200 truncate">FIN DE LA POBREZA</span>
+            </div>
+
+            <!-- Indicador de Arma estilo Contra -->
+            <div class="flex items-center gap-1 shrink-0 bg-slate-900 border border-slate-700 px-1.5 py-0.5">
+                <span id="hud-weapon-badge" class="text-[9px] font-bold px-1 bg-emerald-600 text-white">N</span>
+                <span id="hud-weapon-name" class="text-[8px] text-yellow-300">PULSE</span>
+            </div>
+
+            <!-- Escudo y Vidas -->
+            <div class="flex items-center gap-1 shrink-0 ml-1">
+                <span id="hud-shield-icon" class="hidden text-[9px] text-cyan-400">🛡️</span>
+                <div id="hud-lives" class="flex items-center gap-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIENZO DE JUEGO -->
+    <div class="relative flex-1 w-full h-full overflow-hidden">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- PANTALLA DE TÍTULO ESTILO CONTRA NES + SELECTOR DE NAVE -->
+        <div id="screen-start" class="absolute inset-0 z-30 bg-black/92 flex flex-col justify-between p-3 sm:p-4 overflow-y-auto retro-scroll">
+            <!-- Marco superior título Contra -->
+            <div class="contra-frame p-3 text-center relative">
+                <div class="text-[8px] sm:text-[9px] text-cyan-400 tracking-widest mb-1">KONAMI-NAMCO TRIBUTE • AGENDA 2030</div>
+                <div class="text-xl sm:text-2xl leading-tight contra-title tracking-wider">
+                    ODS CONTRA
+                </div>
+                <div class="text-lg sm:text-xl leading-tight contra-subtitle mt-0.5">
+                    GALAGA 2030
+                </div>
+                <!-- Franja 17 colores ODS -->
+                <div class="mt-2 flex justify-center gap-0.5">
+                    <span class="w-2.5 h-2" style="background:#E5243B"></span>
+                    <span class="w-2.5 h-2" style="background:#DDA63A"></span>
+                    <span class="w-2.5 h-2" style="background:#4C9F38"></span>
+                    <span class="w-2.5 h-2" style="background:#C5192D"></span>
+                    <span class="w-2.5 h-2" style="background:#FF3A21"></span>
+                    <span class="w-2.5 h-2" style="background:#26BDE2"></span>
+                    <span class="w-2.5 h-2" style="background:#FCC30B"></span>
+                    <span class="w-2.5 h-2" style="background:#A21942"></span>
+                    <span class="w-2.5 h-2" style="background:#FD6925"></span>
+                    <span class="w-2.5 h-2" style="background:#DD1367"></span>
+                    <span class="w-2.5 h-2" style="background:#FD9D24"></span>
+                    <span class="w-2.5 h-2" style="background:#BF8B2E"></span>
+                    <span class="w-2.5 h-2" style="background:#3F7E44"></span>
+                    <span class="w-2.5 h-2" style="background:#0A97D9"></span>
+                    <span class="w-2.5 h-2" style="background:#56C02B"></span>
+                    <span class="w-2.5 h-2" style="background:#00689D"></span>
+                    <span class="w-2.5 h-2" style="background:#19486A"></span>
+                </div>
+            </div>
+
+            <!-- HANGAR: SELECTOR DE 4 NAVES CON DISTINTAS MECÁNICAS -->
+            <div class="my-2">
+                <div class="text-[9px] text-yellow-300 text-center mb-1.5">▶ ELIGE TU NAVE ECO-DEFENSORA ◀</div>
+                <div id="ship-selector-grid" class="grid grid-cols-2 gap-2">
+                    <!-- Rellenado dinámicamente con canvas miniaturas pixel art -->
+                </div>
+            </div>
+
+            <!-- Leyenda rápida de Cápsulas Contra + Controles -->
+            <div class="bg-slate-950 border border-slate-700 p-2 text-[8px] leading-relaxed">
+                <div class="text-cyan-300 mb-1 text-center">CÁPSULAS DE ARMA ESTILO CONTRA:</div>
+                <div class="grid grid-cols-3 gap-1 text-center">
+                    <div><span class="text-red-400 font-bold">[S]</span> ABANICO x5</div>
+                    <div><span class="text-cyan-400 font-bold">[L]</span> LÁSER PERFORA</div>
+                    <div><span class="text-emerald-400 font-bold">[M]</span> RÁFAGA ULTRA</div>
+                    <div><span class="text-orange-400 font-bold">[F]</span> PLASMA ÁREA</div>
+                    <div><span class="text-lime-400 font-bold">[H]</span> MISILES AUTO</div>
+                    <div><span class="text-sky-400 font-bold">[B]</span> BARRERA</div>
+                </div>
+                <div class="text-center text-yellow-300 mt-1.5 pt-1 border-t border-slate-800">
+                    🖱️ RATÓN: MOVER NAVE • CLIC IZQUIERDO: DISPARAR
+                </div>
+            </div>
+
+            <!-- Botones de inicio -->
+            <div class="flex flex-col gap-2 mt-2">
+                <button id="btn-play" class="arcade-btn arcade-btn-red text-xs py-3">
+                    ▶ 1 PLAYER START (NIVEL 1)
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-continue" class="arcade-btn hidden text-[9px] py-2.5">
+                        ↻ NIVEL <span id="continue-lvl-num">1</span>
+                    </button>
+                    <button id="btn-open-levels" class="arcade-btn text-[9px] py-2.5 col-span-2">
+                        ☰ 150 NIVELES ODS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL CAMBIO RÁPIDO DE NAVE EN PARTIDA -->
+        <div id="screen-hangar-modal" class="hidden absolute inset-0 z-40 bg-black/95 flex flex-col justify-between p-4">
+            <div class="flex justify-between items-center border-b-2 border-slate-700 pb-2">
+                <h2 class="text-xs text-yellow-300">HANGAR DE NAVES</h2>
+                <button id="btn-close-hangar" class="arcade-btn text-[9px] px-2.5 py-1.5">✕ REANUDAR</button>
+            </div>
+            <p class="text-[8px] text-slate-300 leading-relaxed">
+                Cambia de nave en cualquier momento para adaptar tu estrategia al jefe o tipo de oleada:
+            </p>
+            <div id="modal-ship-grid" class="grid grid-cols-1 gap-2 overflow-y-auto flex-1 my-2"></div>
+        </div>
+
+        <!-- SELECTOR DE LOS 150 NIVELES -->
+        <div id="screen-levels" class="hidden absolute inset-0 z-40 bg-black/95 flex flex-col p-4">
+            <div class="flex justify-between items-center border-b-2 border-slate-700 pb-3 mb-2">
+                <div>
+                    <h2 class="text-xs sm:text-sm text-yellow-300">150 NIVELES AGENDA 2030</h2>
+                    <p class="text-[8px] text-slate-400 mt-1">★ = JEFE CADA 5 NIVELES | 👑 = MEGA-JEFE CADA 10</p>
+                </div>
+                <button id="btn-close-levels" class="arcade-btn text-[9px] px-3 py-2">✕ VOLVER</button>
+            </div>
+            <div id="levels-grid" class="retro-scroll grid grid-cols-5 gap-2 overflow-y-auto flex-1 pr-1 pb-4"></div>
+        </div>
+
+        <!-- PANTALLA DE TRANSICIÓN ENTRE NIVELES (DATO EDUCATIVO ODS) -->
+        <div id="screen-stage-clear" class="hidden absolute inset-0 z-30 bg-black/88 flex flex-col items-center justify-center p-5 text-center">
+            <div class="text-xs text-cyan-400 mb-2 blink">¡SECTOR DESCONTAMINADO!</div>
+            <h2 id="clear-title" class="text-base sm:text-lg text-yellow-300 mb-4">NIVEL 1 COMPLETADO</h2>
+            
+            <div id="clear-sdg-card" class="border-4 p-4 w-full max-w-md bg-slate-950/95 mb-4" style="border-color: #E5243B;">
+                <div id="clear-sdg-number" class="inline-block px-3 py-1 text-xs text-white mb-2" style="background: #E5243B;">ODS 1</div>
+                <h3 id="clear-sdg-name" class="text-xs text-white leading-relaxed mb-2">FIN DE LA POBREZA</h3>
+                <p id="clear-sdg-fact" class="text-[9px] leading-loose text-slate-300"></p>
+            </div>
+
+            <div class="text-[10px] text-emerald-400 mb-4">
+                BONO AGENDA 2030: +<span id="clear-bonus">500</span> PTS
+            </div>
+
+            <button id="btn-next-level" class="arcade-btn arcade-btn-red text-xs">
+                SIGUIENTE NIVEL ▶
+            </button>
+            <div class="text-[8px] text-slate-400 mt-3">O haz clic izquierdo para continuar</div>
+        </div>
+
+        <!-- PANTALLA DE GAME OVER -->
+        <div id="screen-gameover" class="hidden absolute inset-0 z-30 bg-black/92 flex flex-col items-center justify-center p-6 text-center">
+            <h2 class="text-2xl text-red-500 mb-3">GAME OVER</h2>
+            <p class="text-[9px] text-slate-300 mb-5 leading-relaxed">
+                LA CRISIS AMBIENTAL HA AVANZADO,<br>PERO PUEDES REINTENTAR LA MISIÓN.
+            </p>
+            <div class="bg-slate-900 border-2 border-slate-700 p-4 w-full max-w-xs mb-5 space-y-2 text-[10px]">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">PUNTUACIÓN:</span>
+                    <span id="go-score" class="text-white">0</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">NIVEL ALCANZADO:</span>
+                    <span id="go-level" class="text-cyan-400">1 / 150</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">RÉCORD:</span>
+                    <span id="go-highscore" class="text-yellow-300">25000</span>
+                </div>
+            </div>
+            <div class="flex flex-col gap-3 w-full max-w-xs">
+                <button id="btn-retry" class="arcade-btn arcade-btn-red text-xs">
+                    ↻ REINTENTAR NIVEL
+                </button>
+                <button id="btn-go-menu" class="arcade-btn text-[10px]">
+                    MENÚ Y HANGAR
+                </button>
+            </div>
+        </div>
+
+        <!-- PANTALLA DE VICTORIA FINAL (150 NIVELES) -->
+        <div id="screen-victory" class="hidden absolute inset-0 z-30 bg-black/94 flex flex-col items-center justify-center p-6 text-center">
+            <div class="text-xs text-yellow-300 mb-2 blink">★ ★ ★ VICTORIA TOTAL ★ ★ ★</div>
+            <h2 class="text-lg sm:text-xl text-emerald-400 leading-snug mb-4">
+                ¡150 NIVELES<br>AGENDA 2030 COMPLETADOS!
+            </h2>
+            <p class="text-[9px] text-slate-200 leading-loose max-w-sm mb-5">
+                HAS DERROTADO A TODOS LOS JEFES ANTI-ODS Y PROTEGIDO LOS 17 OBJETIVOS DE DESARROLLO SOSTENIBLE DE LA HUMANIDAD.
+            </p>
+            <div class="bg-slate-900 border-2 border-emerald-500 p-4 w-full max-w-xs mb-6 text-xs">
+                <div class="text-slate-400 text-[9px] mb-1">PUNTUACIÓN FINAL</div>
+                <div id="vic-score" class="text-yellow-300 text-base">000000</div>
+            </div>
+            <button id="btn-vic-menu" class="arcade-btn arcade-btn-red text-xs">
+                VOLVER AL TÍTULO
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * ODS CONTRA-GALAGA 2030 - MOTOR ARCADE 8-BIT HÍBRIDO (GALAGA + CONTRA NES)
+ * ============================================================================
+ */
+
+// ----------------------------------------------------------------------------
+// 1. LOS 17 OBJETIVOS DE DESARROLLO SOSTENIBLE (AGENDA 2030)
+// ----------------------------------------------------------------------------
+const ODS_DATA = [
+    { id: 1, name: "FIN DE LA POBREZA", color: "#E5243B", fact: "Erradicar la pobreza extrema en todo el mundo y garantizar sistemas de protección social para todos es la meta 1 de la Agenda 2030." },
+    { id: 2, name: "HAMBRE CERO", color: "#DDA63A", fact: "Promover la agricultura sostenible y reducir el desperdicio alimentario permite asegurar alimentos nutritivos para toda la población." },
+    { id: 3, name: "SALUD Y BIENESTAR", color: "#4C9F38", fact: "Reducir la contaminación del aire, el agua y el suelo previene millones de enfermedades respiratorias y cardiovasculares." },
+    { id: 4, name: "EDUCACIÓN DE CALIDAD", color: "#C5192D", fact: "Garantizar una educación inclusiva, equitativa y de calidad empodera a las nuevas generaciones para cuidar el planeta." },
+    { id: 5, name: "IGUALDAD DE GÉNERO", color: "#FF3A21", fact: "La igualdad de oportunidades y liderazgo entre mujeres y hombres acelera el desarrollo sostenible global." },
+    { id: 6, name: "AGUA LIMPIA Y SANEAMIENTO", color: "#26BDE2", fact: "Proteger los acuíferos, ríos y humedales evita los vertidos tóxicos y asegura agua potable para todas las comunidades." },
+    { id: 7, name: "ENERGÍA ASEQUIBLE Y NO CONTAMINANTE", color: "#FCC30B", fact: "La transición hacia energía solar, eólica e hidroeléctrica limpia reduce drásticamente nuestra dependencia de combustibles fósiles." },
+    { id: 8, name: "TRABAJO DECENTE Y CRECIMIENTO", color: "#A21942", fact: "Desvincular el crecimiento económico de la degradación ambiental impulsa empleos verdes e innovación." },
+    { id: 9, name: "INDUSTRIA, INNOVACIÓN E INFRAESTRUCTURA", color: "#FD6925", fact: "Modernizar las industrias para que sean limpias y eficientes en el uso de recursos es clave para el futuro." },
+    { id: 10, name: "REDUCCIÓN DE LAS DESIGUALDADES", color: "#DD1367", fact: "Fomentar políticas inclusivas reduce la brecha económica y social dentro y entre los países." },
+    { id: 11, name: "CIUDADES Y COMUNIDADES SOSTENIBLES", color: "#FD9D24", fact: "Ciudades con transporte eléctrico, zonas verdes y gestión circular de residuos mejoran la calidad de vida urbana." },
+    { id: 12, name: "PRODUCCIÓN Y CONSUMO RESPONSABLES", color: "#BF8B2E", fact: "Aplicar las 3R (Reducir, Reutilizar, Reciclar) frena la acumulación de plásticos y residuos electrónicos." },
+    { id: 13, name: "ACCIÓN POR EL CLIMA", color: "#3F7E44", fact: "Limitar el aumento de la temperatura global exige recortar las emisiones de CO2 y proteger los sumideros de carbono." },
+    { id: 14, name: "VIDA SUBMARINA", color: "#0A97D9", fact: "Eliminar los microplásticos y la pesca destructiva salva los arrecifes de coral y los ecosistemas marinos." },
+    { id: 15, name: "VIDA DE ECOSISTEMAS TERRESTRES", color: "#56C02B", fact: "Detener la deforestación y restaurar los bosques protege la biodiversidad terrestre y frena la desertificación." },
+    { id: 16, name: "PAZ, JUSTICIA E INSTITUCIONES SÓLIDAS", color: "#00689D", fact: "La cooperación pacífica y las instituciones transparentes son esenciales para aplicar leyes ambientales efectivas." },
+    { id: 17, name: "ALIANZAS PARA LOGRAR LOS OBJETIVOS", color: "#19486A", fact: "La unión entre ciencia, ciudadanía y naciones hace posible cumplir los 17 Objetivos de Desarrollo Sostenible." }
+];
+
+// ----------------------------------------------------------------------------
+// 2. PALETA DE COLORES Y MATRICES PIXEL ART 8-BIT
+// ----------------------------------------------------------------------------
+const PALETTE = {
+    '.': null,
+    'W': '#FFFFFF',
+    'B': '#38BDF8',
+    'D': '#0284C7',
+    'N': '#1E3A8A',
+    'G': '#22C55E',
+    'L': '#86EFAC',
+    'E': '#15803D',
+    'R': '#EF4444',
+    'M': '#991B1B',
+    'Y': '#FACC15',
+    'O': '#F97316',
+    'P': '#A855F7',
+    'V': '#6B21A8',
+    'K': '#334155',
+    'S': '#94A3B8',
+    'C': '#2DD4BF',
+    'T': '#78350F'
+};
+
+// 4 NAVES JUGABLES EN PIXEL ART
+const SHIP_DEFS = [
+    {
+        id: 'falcon',
+        name: 'ECO-FALCON',
+        role: 'EQUILIBRADA • IMÁN',
+        desc: 'Doble disparo inicial y atrae cápsulas desde lejos.',
+        color: '#38BDF8',
+        speedLerp: 0.35,
+        fireRateMult: 1.0,
+        damageMult: 1.0,
+        magnetRadius: 95,
+        startShield: false,
+        hasWingman: false,
+        sprite: [
+            ".......W.......",
+            "......WWW......",
+            "......WBW......",
+            ".....WWBWW.....",
+            "..B..WBBBW..B..",
+            "..B..WWWWW..B..",
+            "..W.WWWBWWW.W..",
+            ".WW.WBBBBBW.WW.",
+            ".WWWWBYYYBWWWW.",
+            "WWWWWBYYYBWWWWW",
+            "W.WWBBBBBBBWW.W",
+            "W..W.B...B.W..W",
+            ".....R...R.....",
+            ".....Y...Y....."
+        ]
+    },
+    {
+        id: 'titan',
+        name: 'SOLAR TITAN',
+        role: 'TANQUE • +50% DAÑO',
+        desc: 'Escudo solar en cada nivel y disparos +50% potentes.',
+        color: '#FACC15',
+        speedLerp: 0.25,
+        fireRateMult: 1.15,
+        damageMult: 1.5,
+        magnetRadius: 34,
+        startShield: true,
+        hasWingman: false,
+        sprite: [
+            ".....WW.WW.....",
+            "....WYYWYYW....",
+            "...WWYYYYYWW...",
+            "..WWYOOOOOYWW..",
+            ".WWYYOOWOOYYWW.",
+            "WWYYYOWBWOYYYWW",
+            "WYYYYWWBWWYYYYW",
+            "WOOYYYYYYYYYOOW",
+            "WOO.YYYYYYY.OOW",
+            "W...OO...OO...W",
+            "....RR...RR....",
+            "....YY...YY...."
+        ]
+    },
+    {
+        id: 'viper',
+        name: 'HYDRO VIPER',
+        role: 'VELOZ • MISIL EXTRA',
+        desc: 'Cadencia +40% rápida y dispara un misil auto cada 4 tiros.',
+        color: '#2DD4BF',
+        speedLerp: 0.55,
+        fireRateMult: 0.65,
+        damageMult: 0.95,
+        magnetRadius: 42,
+        startShield: false,
+        hasWingman: false,
+        sprite: [
+            ".......C.......",
+            "......CCC......",
+            "......CWC......",
+            ".....CCWCC.....",
+            "....CCCBCCC....",
+            "...CCWWBWWCC...",
+            "..CCWBBBBBWCC..",
+            ".CCWBBYYYBBWCC.",
+            "CCWBBBBBBBBBWCC",
+            "C..C..CCC..C..C",
+            "......R.R......",
+            "......B.B......"
+        ]
+    },
+    {
+        id: 'phoenix',
+        name: 'BIO PHOENIX',
+        role: 'DOBLE NAVE GALAGA',
+        desc: 'Despliega un dron aliado acoplado y cápsulas duran +50%.',
+        color: '#4ADE80',
+        speedLerp: 0.34,
+        fireRateMult: 1.0,
+        damageMult: 1.0,
+        magnetRadius: 42,
+        startShield: false,
+        hasWingman: true,
+        sprite: [
+            ".......G.......",
+            "......GLG......",
+            ".....GGLGG.....",
+            "..Y..GWWWG..Y..",
+            ".YGY.GWYWG.YGY.",
+            "YGGGYGWWWGYYYYY",
+            "GGGGGGGGGGGGGGG",
+            "G.GGGGGYGGGGG.G",
+            "G..GG..G..GG..G",
+            ".......R.......",
+            ".......Y......."
+        ]
+    }
+];
+
+// Sprite mini-dron aliado para BIO PHOENIX
+const WINGMAN_SPRITE = [
+    "...G...",
+    "..GLG..",
+    ".GWWWG.",
+    "GGGGGGG",
+    "G.GYG.G",
+    "..R.R.."
+];
+
+// 8 TIPOS DE ENEMIGOS PIXEL ART 8-BIT
+const ENEMY_SPRITES = {
+    toxic: [
+        [
+            "...KKKKKK...",
+            "..KYYYYYYK..",
+            ".KGGGGGGGGK.",
+            ".KGKGGGGKGK.",
+            ".KGGKKKKGGK.",
+            ".KGGGGGGGGK.",
+            "..KYYYYYYK..",
+            "...KKKKKK...",
+            "..G......G.."
+        ],
+        [
+            "...KKKKKK...",
+            "..KYYYYYYK..",
+            ".KGGGGGGGGK.",
+            ".KGKGGGGKGK.",
+            ".KGGKKKKGGK.",
+            ".KGGGGGGGGK.",
+            "..KYYYYYYK..",
+            "...KKKKKK...",
+            "....G..G...."
+        ]
+    ],
+    smog: [
+        [
+            "...SSSSSS...",
+            "..SPPPPPPS..",
+            ".SPPRRRRPPS.",
+            "SPPPRYYRPPPS",
+            "SPPPPPPPPPPS",
+            ".SSPPPPPPSS.",
+            "..SS.SS.SS.."
+        ],
+        [
+            "..SSSSSSSS..",
+            ".SPPPPPPPPS.",
+            "SPPPRRRRPPS.",
+            "SPPPRYYRPPPS",
+            "SPPPPPPPPPPS",
+            "..SSPPPPSS..",
+            ".SS..SS..SS."
+        ]
+    ],
+    plastic: [
+        [
+            ".BB......BB.",
+            "BBBB....BBBB",
+            "BWWBB..BBWWB",
+            "BWRBBBBBBWRB",
+            ".BBBBBBBBBB.",
+            "..BBYYYYBB..",
+            ".BBBBBBBBBB.",
+            "BB..BBBB..BB"
+        ],
+        [
+            "..BB....BB..",
+            ".BBBB..BBBB.",
+            ".BWWBBBBWWB.",
+            ".BWRBBBBWRB.",
+            "..BBBBBBBB..",
+            "...BBYYBB...",
+            "..BBBBBBBB..",
+            ".BB..BB..BB."
+        ]
+    ],
+    microplastic: [
+        [
+            ".BBBB.",
+            "BWRWRB",
+            "BBBBBB",
+            ".B..B."
+        ],
+        [
+            "BBBBBB",
+            "BWRWRB",
+            ".BBBB.",
+            "B....B"
+        ]
+    ],
+    factory: [
+        [
+            "..PP....PP..",
+            ".KKKKKKKKKK.",
+            "KRRRRRRRRRRK",
+            "KRYRKKKKRYRK",
+            "KRRRRRRRRRRK",
+            "KKOOKKKKOOKK",
+            "..KKKKKKKK..",
+            ".PP..PP..PP."
+        ],
+        [
+            ".PP......PP.",
+            ".KKKKKKKKKK.",
+            "KRRRRRRRRRRK",
+            "KRYRKKKKRYRK",
+            "KRRRRRRRRRRK",
+            "KKOOKKKKOOKK",
+            "..KKKKKKKK..",
+            "PP...PP...PP"
+        ]
+    ],
+    bulldozer: [
+        [
+            "..TTTTTTTT..",
+            ".TYYYYYYYYT.",
+            "TYKYYYYYYKYT",
+            "TYYYYYYYYYYT",
+            "SSSSSSSSSSSS",
+            "SKKSSKKSSKKS",
+            "SSSSSSSSSSSS"
+        ],
+        [
+            "..TTTTTTTT..",
+            ".TYYYYYYYYT.",
+            "TYKYYYYYYKYT",
+            "TYYYYYYYYYYT",
+            "SSSSSSSSSSSS",
+            "SSKKSSKKSSKK",
+            "SSSSSSSSSSSS"
+        ]
+    ],
+    battery: [
+        [
+            "....KKKK....",
+            "..RRRRRRRR..",
+            ".RYYYYYYYYR.",
+            ".RYYRRRRYYR.",
+            ".RYYYYYYYYR.",
+            ".RYYRRRRYYR.",
+            "..RRRRRRRR..",
+            "...OO..OO..."
+        ],
+        [
+            "....KKKK....",
+            "..YYYYYYYY..",
+            ".YRRRRRRRRY.",
+            ".YRRYYYYRRY.",
+            ".YRRRRRRRRY.",
+            ".YRRYYYYRRY.",
+            "..YYYYYYYY..",
+            "..OO....OO.."
+        ]
+    ],
+    satellite: [
+        [
+            "BB...KK...BB",
+            "BB.KKKKKK.BB",
+            "BBKCCWWCCKBB",
+            "BBKCWRRWCKBB",
+            "BBKCCWWCCKBB",
+            "BB.KKKKKK.BB",
+            "BB...KK...BB"
+        ],
+        [
+            "BB...KK...BB",
+            "BB.KKKKKK.BB",
+            "BBKCCCCCCKBB",
+            "BBKCCCCCCKBB",
+            "BBKCCCCCCKBB",
+            "BB.KKKKKK.BB",
+            "BB...KK...BB"
+        ]
+    ],
+    parasite: [
+        [
+            "...VVVVVV...",
+            "..VPPPPPPV..",
+            ".VPPRRRRPPV.",
+            "VPPRYYYYRPPV",
+            "VPPPPPPPPPPV",
+            ".VVVVVVVVVV.",
+            "..G..GG..G..",
+            ".G...GG...G."
+        ],
+        [
+            "...VVVVVV...",
+            "..VPPPPPPV..",
+            ".VPPRRRRPPV.",
+            "VPPRYYYYRPPV",
+            "VPPPPPPPPPPV",
+            ".VVVVVVVVVV.",
+            "...G.GG.G...",
+            "..G..GG..G.."
+        ]
+    ]
+};
+
+// 6 ARQUETIPOS DE JEFES FINALES EN PIXEL ART
+const BOSS_ARCHETYPES = [
+    {
+        id: 'smog_titan',
+        name: 'MEGACORP SMOG TITAN',
+        subtitle: 'CAÑONES DE EMISIONES TÓXICAS',
+        pixelSize: 4,
+        hasTurrets: true,
+        pattern: 'spread_and_turrets',
+        sprite: [
+            "....KKKK........KKKK....",
+            "....KSSK........KSSK....",
+            "...KKKKKK......KKKKKK...",
+            "..KPPPPPPKKKKKKPPPPPPK..",
+            ".KPPPPPPPPPPPPPPPPPPPPK.",
+            "KPPPRRRPPPPPPPPPPPRRRPPK",
+            "KPPRYYYRPPPPPPPPRYYYRPPK",
+            "KPPPRRRPPPPPPPPPPPRRRPPK",
+            "KPPPPPPPPKKKKKKPPPPPPPPK",
+            "KPPPPPPPKYYYYYYKPPPPPPPK",
+            ".KPPPPPPKRRRRRRKPPPPPPK.",
+            "KOOOKKPPPPPPPPPPPPKKOOOK",
+            "KOOO..KKKKPPPPKKKK..OOOK"
+        ]
+    },
+    {
+        id: 'plastic_leviathan',
+        name: 'LEVIATÁN DE PLÁSTICO',
+        subtitle: 'DEVORADOR DE OCÉANOS (ODS 14)',
+        pixelSize: 4,
+        hasTurrets: false,
+        pattern: 'waves_and_minions',
+        sprite: [
+            "......BBBBBBBBBBBB......",
+            "....BBBBWWWWWWWWBBBB....",
+            "..BBBBWWWWWWWWWWWWBBBB..",
+            ".BBBRRRBBBBBBBBBBBRRRBBB",
+            "BBBRYYYRBBBBBBBBRYYYRBBB",
+            "BBBBBBBBBBBBBBBBBBBBBBBB",
+            "BB.BBBB.BBBBBBBB.BBBB.BB",
+            "B..BBBB..BBBBBB..BBBB..B",
+            "...BBB....BBBB....BBB...",
+            "..BB.......BB.......BB.."
+        ]
+    },
+    {
+        id: 'nuclear_reactor',
+        name: 'REACTOR INESTABLE X-9',
+        subtitle: 'ANILLO ORBITAL DE RESIDUOS',
+        pixelSize: 4,
+        hasTurrets: false,
+        hasOrbitShield: true,
+        pattern: 'spiral_burst',
+        sprite: [
+            ".......KKKKKKKKKK.......",
+            ".....KKYYYYYYYYYYKK.....",
+            "...KKYYKKKKKKKKKKYYKK...",
+            "..KYYKKGGGGGGGGGGKKYYK..",
+            ".KYYKGGGGGGGGGGGGGGKYYK.",
+            ".KYYKGGGGRRRRRRGGGGKYYK.",
+            ".KYYKGGGRYYYYYYRGGGKYYK.",
+            ".KYYKGGGGRRRRRRGGGGKYYK.",
+            ".KYYKGGGGGGGGGGGGGGKYYK.",
+            "..KYYKKGGGGGGGGGGKKYYK..",
+            "...KKYYKKKKKKKKKKYYKK...",
+            ".....KKYYYYYYYYYYKK....."
+        ]
+    },
+    {
+        id: 'deforest_king',
+        name: 'TALADOR SUPREMO',
+        subtitle: 'DESTRUCTOR DE BOSQUES (ODS 15)',
+        pixelSize: 4,
+        hasTurrets: true,
+        pattern: 'laser_and_dash',
+        sprite: [
+            "..TTTTTTTTTTTTTTTTTTTT..",
+            ".TYYYYYYYYYYYYYYYYYYYYT.",
+            "TYRRRRYYYYYYYYYYYYRRRRYT",
+            "TYRYYRYYYYKKKKYYYYRYYRYT",
+            "TYRRRRYYYYKRRKYYYYRRRRYT",
+            "TYYYYYYYYYKKKKYYYYYYYYYT",
+            "SSSSSSSSSSSSSSSSSSSSSSSS",
+            "SKKSSKKSSKKSSKKSSKKSSKKS",
+            ".SSSSSSSSSSSSSSSSSSSSSS."
+        ]
+    },
+    {
+        id: 'acid_emperor',
+        name: 'REY DEL DESPILFARRO',
+        subtitle: 'LLUVIA ÁCIDA Y CONTAMINACIÓN',
+        pixelSize: 4,
+        hasTurrets: false,
+        pattern: 'acid_rain',
+        sprite: [
+            "....YY....YYYY....YY....",
+            "...YYYY..YYYYYY..YYYY...",
+            "..GGGGGGGGGGGGGGGGGGGG..",
+            ".GGRRRRGGGGGGGGGGGRRRRG.",
+            "GGRYYYYRGGGGGGGGGRYYYYRG",
+            "GGGGGGGGKKKKKKKKGGGGGGGG",
+            ".GGGGGGKRRRRRRRRKGGGGGG.",
+            "..GGGGGGKKKKKKKKGGGGGG..",
+            "...GG..GG..GG..GG..GG..."
+        ]
+    },
+    {
+        id: 'climate_overlord',
+        name: 'COLOSO CAMBIO CLIMÁTICO',
+        subtitle: 'AMENAZA GLOBAL AGENDA 2030',
+        pixelSize: 4,
+        hasTurrets: true,
+        hasOrbitShield: true,
+        pattern: 'overlord_all',
+        sprite: [
+            "..RR....KKKKKKKK....RR..",
+            ".RRRR..KOOOOOOOO K..RRRR.",
+            "RRRRRRKOOOOOOOOOOKRRRRRR",
+            "RRYYRRKOOORRRROOOKRRYYRR",
+            "RRRRRRKOORYYYYROOKRRRRRR",
+            ".RRRR.KOOORRRROOOK.RRRR.",
+            "..KK..KOOOOOOOOOOK..KK..",
+            ".KKKKKKKYYYYYYYYKKKKKKK.",
+            "KRRRRRRKRRRRRRRRKRRRRRRK",
+            "KOOOK..KKKKKKKKKK..KOOOK"
+        ]
+    }
+];
+
+function drawPixelSprite(ctx, matrix, centerX, centerY, pixelSize, tintColor = null) {
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+    const startX = Math.round(centerX - (cols * pixelSize) / 2);
+    const startY = Math.round(centerY - (rows * pixelSize) / 2);
+
+    for (let r = 0; r < rows; r++) {
+        const rowStr = matrix[r];
+        for (let c = 0; c < cols; c++) {
+            const ch = rowStr[c];
+            if (ch === '.' || ch === ' ') continue;
+            ctx.fillStyle = tintColor || PALETTE[ch] || '#FFFFFF';
+            ctx.fillRect(
+                startX + c * pixelSize,
+                startY + r * pixelSize,
+                pixelSize,
+                pixelSize
+            );
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 3. SINTETIZADOR DE AUDIO CHIPTUNE RETRO (WEB AUDIO API)
+// ----------------------------------------------------------------------------
+class ChiptuneAudio {
+    constructor() {
+        this.ctx = null;
+        this.muted = false;
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioCtx();
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+    }
+
+    playTone(freqStart, freqEnd, duration, type = 'square', volume = 0.1, delay = 0) {
+        if (this.muted) return;
+        this.init();
+        const now = this.ctx.currentTime + delay;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freqStart, now);
+        if (freqEnd !== freqStart) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqEnd), now + duration);
+        }
+
+        gain.gain.setValueAtTime(volume, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+    }
+
+    shoot(weaponType) {
+        if (weaponType === 'S') {
+            this.playTone(760, 260, 0.12, 'sawtooth', 0.09);
+        } else if (weaponType === 'L') {
+            this.playTone(1450, 620, 0.14, 'square', 0.08);
+        } else if (weaponType === 'M') {
+            this.playTone(1100, 400, 0.06, 'square', 0.07);
+        } else if (weaponType === 'F') {
+            this.playTone(420, 150, 0.15, 'triangle', 0.12);
+        } else if (weaponType === 'H') {
+            this.playTone(880, 1250, 0.12, 'square', 0.08);
+        } else {
+            this.playTone(950, 240, 0.09, 'square', 0.08);
+        }
+    }
+
+    podHit() {
+        this.playTone(600, 900, 0.07, 'triangle', 0.09);
+    }
+
+    contraPickup() {
+        // Sonido clásico de recoger cápsula de arma en Contra NES
+        const notes = [440, 554.37, 659.25, 880, 1108.73];
+        notes.forEach((n, idx) => {
+            this.playTone(n, n, 0.06, 'square', 0.11, idx * 0.045);
+        });
+    }
+
+    enemyHit() {
+        this.playTone(280, 130, 0.06, 'sawtooth', 0.07);
+    }
+
+    explosion() {
+        if (this.muted) return;
+        this.init();
+        const duration = 0.22;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(950, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(90, this.ctx.currentTime + duration);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+
+    playerHit() {
+        this.explosion();
+        this.playTone(210, 50, 0.35, 'sawtooth', 0.15);
+    }
+
+    stageStart() {
+        const melody = [
+            { f: 392.00, d: 0.09, t: 0.00 },
+            { f: 523.25, d: 0.09, t: 0.10 },
+            { f: 659.25, d: 0.09, t: 0.20 },
+            { f: 783.99, d: 0.16, t: 0.30 },
+            { f: 659.25, d: 0.09, t: 0.48 },
+            { f: 1046.50, d: 0.24, t: 0.59 }
+        ];
+        melody.forEach(m => this.playTone(m.f, m.f, m.d, 'square', 0.09, m.t));
+    }
+
+    stageClear() {
+        const melody = [
+            { f: 523.25, d: 0.09, t: 0.00 },
+            { f: 659.25, d: 0.09, t: 0.10 },
+            { f: 783.99, d: 0.09, t: 0.20 },
+            { f: 1046.50, d: 0.14, t: 0.30 },
+            { f: 783.99, d: 0.09, t: 0.46 },
+            { f: 1046.50, d: 0.28, t: 0.57 }
+        ];
+        melody.forEach(m => this.playTone(m.f, m.f, m.d, 'triangle', 0.13, m.t));
+    }
+
+    bossWarning() {
+        this.playTone(130, 95, 0.24, 'sawtooth', 0.13, 0);
+        this.playTone(130, 95, 0.24, 'sawtooth', 0.13, 0.28);
+    }
+}
+
+const sfx = new ChiptuneAudio();
+
+// ----------------------------------------------------------------------------
+// 4. ESTADO GLOBAL DEL JUEGO Y ARMAS CONTRA
+// ----------------------------------------------------------------------------
+const WEAPON_INFO = {
+    'N': { code: 'N', name: 'PULSE',   color: '#22C55E', cooldown: 12 },
+    'S': { code: 'S', name: 'SPREAD',  color: '#EF4444', cooldown: 15 },
+    'L': { code: 'L', name: 'LASER',   color: '#38BDF8', cooldown: 16 },
+    'M': { code: 'M', name: 'MACHINE', color: '#4ADE80', cooldown: 6  },
+    'F': { code: 'F', name: 'PLASMA',  color: '#F97316', cooldown: 15 },
+    'H': { code: 'H', name: 'HOMING',  color: '#A3E635', cooldown: 13 }
+};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const LOGICAL_WIDTH = 480;
+const LOGICAL_HEIGHT = 720;
+canvas.width = LOGICAL_WIDTH;
+canvas.height = LOGICAL_HEIGHT;
+
+const STORAGE_KEY = 'ods_contra_galaga_2030_v2';
+let savedData = {
+    highScore: 25000,
+    unlockedLevel: 1,
+    selectedShipId: 'falcon'
+};
+
+try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.highScore) savedData.highScore = parsed.highScore;
+        if (parsed.unlockedLevel) savedData.unlockedLevel = Math.min(150, Math.max(1, parsed.unlockedLevel));
+        if (parsed.selectedShipId) savedData.selectedShipId = parsed.selectedShipId;
+    }
+} catch (e) {}
+
+function saveProgress() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+    } catch (e) {}
+}
+
+const STATE = {
+    MENU: 'MENU',
+    PLAYING: 'PLAYING',
+    PAUSED_HANGAR: 'PAUSED_HANGAR',
+    STAGE_CLEAR: 'STAGE_CLEAR',
+    GAME_OVER: 'GAME_OVER',
+    VICTORY: 'VICTORY'
+};
+
+let gameState = STATE.MENU;
+let score = 0;
+let currentLevel = 1;
+let lives = 3;
+let frameCount = 0;
+
+let targetMouseX = LOGICAL_WIDTH / 2;
+let isMouseDown = false;
+let keysPressed = {};
+
+let stars = [];
+let player = {
+    x: LOGICAL_WIDTH / 2,
+    y: LOGICAL_HEIGHT - 56,
+    width: 42,
+    height: 42,
+    ship: SHIP_DEFS[0],
+    weapon: 'N',
+    weaponTimer: 0,
+    shootCooldown: 0,
+    shotCounter: 0,
+    invulnerable: 0,
+    shieldActive: false
+};
+
+let playerBullets = [];
+let enemyBullets = [];
+let enemies = [];
+let weaponPods = [];      // Cápsulas voladoras estilo Contra con alas
+let letterDrops = [];     // Letras [S] [L] [M] [F] [H] [B] que caen tras disparar a la cápsula
+let particles = [];
+let floatingTexts = [];
+
+let formationOffsetX = 0;
+let formationDirection = 1;
+let diveTimer = 0;
+let podSpawnTimer = 240;
+let levelBannerTimer = 0;
+
+// ----------------------------------------------------------------------------
+// 5. SELECTOR DE NAVES (HANGAR EN MENÚ PRINCIPAL Y EN PARTIDA)
+// ----------------------------------------------------------------------------
+function getSelectedShip() {
+    return SHIP_DEFS.find(s => s.id === savedData.selectedShipId) || SHIP_DEFS[0];
+}
+
+function renderShipCardPreview(canvasEl, shipDef) {
+    const cctx = canvasEl.getContext('2d');
+    cctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    drawPixelSprite(cctx, shipDef.sprite, canvasEl.width / 2, canvasEl.height / 2, 2.3);
+    if (shipDef.hasWingman) {
+        drawPixelSprite(cctx, WINGMAN_SPRITE, canvasEl.width / 2 + 22, canvasEl.height / 2 + 4, 2);
+    }
+}
+
+function buildShipSelectors() {
+    const mainGrid = document.getElementById('ship-selector-grid');
+    const modalGrid = document.getElementById('modal-ship-grid');
+    mainGrid.innerHTML = '';
+    modalGrid.innerHTML = '';
+
+    SHIP_DEFS.forEach(ship => {
+        const isSel = ship.id === savedData.selectedShipId;
+
+        // Tarjeta compacta para pantalla de título
+        const card = document.createElement('div');
+        card.className = `ship-card p-2 flex flex-col items-center text-center ${isSel ? 'selected' : ''}`;
+        card.innerHTML = `
+            <div class="flex items-center gap-2 mb-1">
+                <canvas width="64" height="40" class="ship-mini-canvas"></canvas>
+                <div class="text-left">
+                    <div class="text-[8px] font-bold" style="color:${ship.color}">${ship.name}</div>
+                    <div class="text-[7px] text-slate-300 mt-0.5">${ship.role}</div>
+                </div>
+            </div>
+            <div class="text-[7px] text-slate-400 leading-tight">${ship.desc}</div>
+        `;
+        renderShipCardPreview(card.querySelector('canvas'), ship);
+        card.addEventListener('click', () => {
+            sfx.init();
+            sfx.podHit();
+            savedData.selectedShipId = ship.id;
+            saveProgress();
+            player.ship = ship;
+            buildShipSelectors();
+        });
+        mainGrid.appendChild(card);
+
+        // Tarjeta amplia para modal en partida
+        const mCard = document.createElement('div');
+        mCard.className = `ship-card p-2.5 flex items-center gap-3 ${isSel ? 'selected' : ''}`;
+        mCard.innerHTML = `
+            <canvas width="68" height="42" class="shrink-0"></canvas>
+            <div class="text-left flex-1">
+                <div class="text-[9px] font-bold" style="color:${ship.color}">${ship.name} — ${ship.role}</div>
+                <div class="text-[8px] text-slate-300 mt-1 leading-relaxed">${ship.desc}</div>
+            </div>
+        `;
+        renderShipCardPreview(mCard.querySelector('canvas'), ship);
+        mCard.addEventListener('click', () => {
+            sfx.contraPickup();
+            savedData.selectedShipId = ship.id;
+            saveProgress();
+            applyShipToPlayer(ship, false);
+            buildShipSelectors();
+            document.getElementById('screen-hangar-modal').classList.add('hidden');
+            gameState = STATE.PLAYING;
+        });
+        modalGrid.appendChild(mCard);
+    });
+}
+
+function applyShipToPlayer(ship, resetWeapon = true) {
+    player.ship = ship;
+    if (resetWeapon) {
+        player.weapon = 'N';
+        player.weaponTimer = 0;
+    }
+    if (ship.startShield) {
+        player.shieldActive = true;
+    }
+    updateHUD();
+}
+
+// ----------------------------------------------------------------------------
+// 6. FONDO DE ESTRELLAS RETRO
+// ----------------------------------------------------------------------------
+function initStars() {
+    stars = [];
+    const starColors = ['#FFFFFF', '#38BDF8', '#FACC15', '#4ADE80', '#F87171', '#A78BFA'];
+    for (let i = 0; i < 85; i++) {
+        stars.push({
+            x: Math.random() * LOGICAL_WIDTH,
+            y: Math.random() * LOGICAL_HEIGHT,
+            speed: 0.45 + Math.random() * 2.2,
+            size: Math.random() < 0.7 ? 2 : 3,
+            color: starColors[Math.floor(Math.random() * starColors.length)],
+            blinkOffset: Math.floor(Math.random() * 60)
+        });
+    }
+}
+
+function updateAndDrawStars() {
+    for (let s of stars) {
+        s.y += s.speed;
+        if (s.y > LOGICAL_HEIGHT) {
+            s.y = 0;
+            s.x = Math.random() * LOGICAL_WIDTH;
+        }
+        if ((frameCount + s.blinkOffset) % 30 < 22) {
+            ctx.fillStyle = s.color;
+            ctx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 7. GENERADOR DE LOS 150 NIVELES (8 ENEMIGOS DISTINTOS + JEFES CADA 5/10 NIV.)
+// ----------------------------------------------------------------------------
+function getSDGForLevel(lvl) {
+    return ODS_DATA[(lvl - 1) % ODS_DATA.length];
+}
+
+function createEnemyEntity(type, hx, hy, orderDelay, lvl) {
+    const tier = Math.floor((lvl - 1) / 10);
+    const baseSpeed = 1.15 + Math.min(2.2, lvl * 0.014);
+
+    const configs = {
+        toxic:        { hp: 1, pts: 100, w: 30, h: 26 },
+        smog:         { hp: 1, pts: 130, w: 30, h: 24 },
+        plastic:      { hp: 2 + Math.floor(tier / 6), pts: 180, w: 32, h: 26 },
+        microplastic: { hp: 1, pts: 70,  w: 18, h: 16 },
+        factory:      { hp: 2 + Math.floor(tier / 4), pts: 260, w: 34, h: 26 },
+        bulldozer:    { hp: 2, pts: 220, w: 34, h: 24 },
+        battery:      { hp: 1, pts: 190, w: 28, h: 26 },
+        satellite:    { hp: 2 + Math.floor(tier / 5), pts: 280, w: 34, h: 24 },
+        parasite:     { hp: 3 + Math.floor(tier / 4), pts: 350, w: 34, h: 28 }
+    };
+
+    const cfg = configs[type] || configs.toxic;
+
+    return {
+        isBoss: false,
+        type,
+        homeX: hx,
+        homeY: hy,
+        x: hx < LOGICAL_WIDTH / 2 ? -30 : LOGICAL_WIDTH + 30,
+        y: -30,
+        width: cfg.w,
+        height: cfg.h,
+        hp: cfg.hp,
+        maxHp: cfg.hp,
+        points: cfg.pts,
+        state: 'entering',
+        enterProgress: -orderDelay,
+        enterSide: hx < LOGICAL_WIDTH / 2 ? -1 : 1,
+        diveSpeed: baseSpeed + 1.9,
+        shieldOpen: true,
+        hitFlash: 0
+    };
+}
+
+function setupLevel(lvl) {
+    currentLevel = lvl;
+    enemies = [];
+    playerBullets = [];
+    enemyBullets = [];
+    weaponPods = [];
+    letterDrops = [];
+    formationOffsetX = 0;
+    formationDirection = 1;
+    levelBannerTimer = 135;
+    podSpawnTimer = 150;
+
+    // Recarga escudo de SOLAR TITAN al inicio de cada nivel
+    if (player.ship.startShield) {
+        player.shieldActive = true;
+    }
+
+    updateHUD();
+
+    const isBossLevel = (lvl % 5 === 0);
+    const isMegaBoss = (lvl % 10 === 0);
+    const tier = Math.floor((lvl - 1) / 5);
+
+    if (isBossLevel) {
+        sfx.bossWarning();
+        // Seleccionar uno de los 6 arquetipos de Jefe
+        const archetype = (lvl % 30 === 0 || lvl === 150)
+            ? BOSS_ARCHETYPES[5] // Coloso Cambio Climático en niveles 30, 60, 90, 120, 150
+            : BOSS_ARCHETYPES[((lvl / 5) - 1) % 5];
+
+        const bossHp = (isMegaBoss ? 34 : 24) + tier * 7;
+
+        const bossObj = {
+            isBoss: true,
+            archetype,
+            homeX: LOGICAL_WIDTH / 2,
+            homeY: 132,
+            x: LOGICAL_WIDTH / 2,
+            y: -70,
+            width: 102,
+            height: 62,
+            hp: bossHp,
+            maxHp: bossHp,
+            points: (isMegaBoss ? 2500 : 1500) + tier * 250,
+            state: 'entering',
+            shootCooldown: 55,
+            specialTimer: 160,
+            orbitAngle: 0,
+            turrets: archetype.hasTurrets ? [
+                { offsetX: -48, offsetY: 14, hp: Math.ceil(bossHp * 0.25), maxHp: Math.ceil(bossHp * 0.25) },
+                { offsetX:  48, offsetY: 14, hp: Math.ceil(bossHp * 0.25), maxHp: Math.ceil(bossHp * 0.25) }
+            ] : [],
+            hitFlash: 0
+        };
+        enemies.push(bossObj);
+
+        // Escoltas variados acompañando al Jefe
+        const escortTypes = ['smog', 'plastic', 'battery', 'satellite'];
+        const escortCount = Math.min(8, 4 + Math.floor(lvl / 30));
+        for (let i = 0; i < escortCount; i++) {
+            const col = i - (escortCount - 1) / 2;
+            const hx = LOGICAL_WIDTH / 2 + col * 52;
+            const hy = 212;
+            const eType = escortTypes[(i + lvl) % escortTypes.length];
+            enemies.push(createEnemyEntity(eType, hx, hy, i * 0.1, lvl));
+        }
+    } else {
+        sfx.stageStart();
+        // Mezcla rica de los 8 tipos de enemigos en cada nivel
+        const rows = Math.min(5, 3 + Math.floor(lvl / 22));
+        const cols = Math.min(8, 6 + Math.floor(lvl / 30));
+        const spacingX = 48;
+        const spacingY = 39;
+        const startX = (LOGICAL_WIDTH - (cols - 1) * spacingX) / 2;
+        const startY = 82;
+
+        // Pool dinámico de enemigos según el nivel y el ODS
+        const rowPools = [
+            ['parasite', 'factory', 'satellite'],
+            ['bulldozer', 'plastic', 'satellite'],
+            ['plastic', 'battery', 'smog'],
+            ['smog', 'toxic', 'battery'],
+            ['toxic', 'smog']
+        ];
+
+        for (let r = 0; r < rows; r++) {
+            const pool = rowPools[r % rowPools.length];
+            const rowTypeA = pool[(lvl + r) % pool.length];
+            const rowTypeB = pool[(lvl + r + 1) % pool.length];
+
+            for (let c = 0; c < cols; c++) {
+                if (lvl % 4 === 0 && r === 0 && (c === 0 || c === cols - 1)) continue;
+                const hx = startX + c * spacingX;
+                const hy = startY + r * spacingY;
+                const chosenType = (c % 2 === 0) ? rowTypeA : rowTypeB;
+                const delay = (r * cols + c) * 0.05;
+                enemies.push(createEnemyEntity(chosenType, hx, hy, delay, lvl));
+            }
+        }
+    }
+
+    diveTimer = Math.max(42, 145 - lvl * 0.7);
+}
+
+// ----------------------------------------------------------------------------
+// 8. CÁPSULAS VOLADORAS DE ARMAS ESTILO CONTRA ([S] [L] [M] [F] [H] [B])
+// ----------------------------------------------------------------------------
+function spawnContraPod() {
+    const fromLeft = Math.random() < 0.5;
+    const letters = ['S', 'L', 'M', 'F', 'H', 'B'];
+    // Ponderación equilibrada para que salgan todas las armas Contra
+    const letter = letters[Math.floor(Math.random() * letters.length)];
+
+    weaponPods.push({
+        x: fromLeft ? -24 : LOGICAL_WIDTH + 24,
+        y: 120 + Math.random() * 210,
+        baseY: 120 + Math.random() * 210,
+        vx: fromLeft ? 2.4 : -2.4,
+        phase: 0,
+        letter,
+        hp: 1
+    });
+}
+
+function dropContraLetter(x, y, letter) {
+    const colorMap = {
+        'S': '#EF4444', // Rojo Spread
+        'L': '#38BDF8', // Azul Láser
+        'M': '#22C55E', // Verde Machine Gun
+        'F': '#F97316', // Naranja Fireball Plasma
+        'H': '#A3E635', // Lima Homing
+        'B': '#06B6D4'  // Cian Barrera
+    };
+    letterDrops.push({
+        x,
+        y,
+        vy: 1.9,
+        letter,
+        color: colorMap[letter] || '#FACC15'
+    });
+}
+
+// ----------------------------------------------------------------------------
+// 9. DISPAROS DE LAS 4 NAVES Y LAS 6 ARMAS ESTILO CONTRA
+// ----------------------------------------------------------------------------
+function firePlayerWeapon() {
+    if (gameState !== STATE.PLAYING) return;
+    if (player.shootCooldown > 0) return;
+
+    const wInfo = WEAPON_INFO[player.weapon] || WEAPON_INFO['N'];
+    player.shootCooldown = Math.max(4, Math.round(wInfo.cooldown * player.ship.fireRateMult));
+    player.shotCounter++;
+
+    sfx.shoot(player.weapon);
+
+    const dmg = player.ship.damageMult;
+    const emitters = [{ x: player.x, y: player.y - 20 }];
+
+    // BIO PHOENIX dispara también desde su dron aliado acoplado
+    if (player.ship.hasWingman) {
+        emitters.push({ x: player.x + 28, y: player.y - 12 });
+    }
+
+    emitters.forEach(em => {
+        if (player.weapon === 'N') {
+            if (player.ship.id === 'falcon') {
+                // Eco-Falcon tiene doble pulso estándar
+                playerBullets.push({ kind: 'normal', x: em.x - 8, y: em.y, vx: 0, vy: -10.5, w: 4, h: 14, dmg, color: '#38BDF8', pierce: false });
+                playerBullets.push({ kind: 'normal', x: em.x + 8, y: em.y, vx: 0, vy: -10.5, w: 4, h: 14, dmg, color: '#38BDF8', pierce: false });
+            } else {
+                playerBullets.push({ kind: 'normal', x: em.x, y: em.y, vx: 0, vy: -10.5, w: 5, h: 15, dmg, color: player.ship.color, pierce: false });
+            }
+        } else if (player.weapon === 'S') {
+            // [S] SPREAD GUN ESTILO CONTRA: 5 proyectiles en abanico
+            const angles = [-0.42, -0.21, 0, 0.21, 0.42];
+            angles.forEach(a => {
+                playerBullets.push({
+                    kind: 'spread',
+                    x: em.x,
+                    y: em.y,
+                    vx: Math.sin(a) * 9.5,
+                    vy: -Math.cos(a) * 9.5,
+                    w: 7,
+                    h: 7,
+                    dmg: dmg * 0.9,
+                    color: '#EF4444',
+                    pierce: false
+                });
+            });
+        } else if (player.weapon === 'L') {
+            // [L] LÁSER PERFORANTE: atraviesa múltiples enemigos
+            playerBullets.push({
+                kind: 'laser',
+                x: em.x,
+                y: em.y - 10,
+                vx: 0,
+                vy: -14,
+                w: 6,
+                h: 34,
+                dmg: dmg * 1.35,
+                color: '#38BDF8',
+                pierce: true,
+                hitIds: new Set()
+            });
+        } else if (player.weapon === 'M') {
+            // [M] MACHINE GUN: ráfaga ultrarrápida
+            const jitter = (Math.random() - 0.5) * 1.2;
+            playerBullets.push({
+                kind: 'machine',
+                x: em.x,
+                y: em.y,
+                vx: jitter,
+                vy: -12.5,
+                w: 6,
+                h: 12,
+                dmg: dmg * 0.85,
+                color: '#4ADE80',
+                pierce: false
+            });
+        } else if (player.weapon === 'F') {
+            // [F] FIREBALL / PLASMA ORB: orbita y explota en área
+            playerBullets.push({
+                kind: 'fireball',
+                baseX: em.x,
+                x: em.x,
+                y: em.y,
+                vx: 0,
+                vy: -8.5,
+                phase: 0,
+                w: 12,
+                h: 12,
+                dmg: dmg * 1.4,
+                color: '#F97316',
+                splash: 56,
+                pierce: false
+            });
+        } else if (player.weapon === 'H') {
+            // [H] HOMING MISSILES: misiles teledirigidos
+            playerBullets.push({
+                kind: 'homing',
+                x: em.x - 8,
+                y: em.y,
+                vx: -2,
+                vy: -7.5,
+                w: 6,
+                h: 12,
+                dmg: dmg * 1.0,
+                color: '#A3E635',
+                pierce: false
+            });
+            playerBullets.push({
+                kind: 'homing',
+                x: em.x + 8,
+                y: em.y,
+                vx: 2,
+                vy: -7.5,
+                w: 6,
+                h: 12,
+                dmg: dmg * 1.0,
+                color: '#A3E635',
+                pierce: false
+            });
+        }
+    });
+
+    // Pasiva de HYDRO VIPER: dispara un micro-misil teledirigido extra cada 4 disparos
+    if (player.ship.id === 'viper' && player.shotCounter % 4 === 0) {
+        playerBullets.push({
+            kind: 'homing',
+            x: player.x,
+            y: player.y - 22,
+            vx: 0,
+            vy: -8.5,
+            w: 5,
+            h: 11,
+            dmg: dmg * 1.1,
+            color: '#2DD4BF',
+            pierce: false
+        });
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 10. ACTUALIZACIÓN DE LÓGICA DE JUEGO (UPDATE)
+// ----------------------------------------------------------------------------
+function update() {
+    frameCount++;
+    if (gameState !== STATE.PLAYING) return;
+
+    if (levelBannerTimer > 0) levelBannerTimer--;
+
+    // 1. Movimiento horizontal con ratón + teclado opcional
+    const kbSpeed = 7.0;
+    if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) targetMouseX -= kbSpeed;
+    if (keysPressed['ArrowRight'] || keysPressed['KeyD']) targetMouseX += kbSpeed;
+    targetMouseX = Math.max(26, Math.min(LOGICAL_WIDTH - 26, targetMouseX));
+
+    player.x += (targetMouseX - player.x) * player.ship.speedLerp;
+
+    if (player.shootCooldown > 0) player.shootCooldown--;
+    if (player.invulnerable > 0) player.invulnerable--;
+
+    if (player.weapon !== 'N' && player.weaponTimer > 0) {
+        player.weaponTimer--;
+        if (player.weaponTimer <= 0) {
+            player.weapon = 'N';
+            updateHUD();
+        }
+    }
+
+    if (isMouseDown) {
+        firePlayerWeapon();
+    }
+
+    // 2. Aparición periódica de Cápsulas de Armas estilo Contra
+    podSpawnTimer--;
+    if (podSpawnTimer <= 0) {
+        spawnContraPod();
+        podSpawnTimer = 390; // Cada ~6.5 segundos
+    }
+
+    // Actualizar Cápsulas voladoras Contra
+    for (let i = weaponPods.length - 1; i >= 0; i--) {
+        const pod = weaponPods[i];
+        pod.phase += 0.08;
+        pod.x += pod.vx;
+        pod.y = pod.baseY + Math.sin(pod.phase) * 22;
+
+        if (pod.x < -40 || pod.x > LOGICAL_WIDTH + 40) {
+            weaponPods.splice(i, 1);
+        }
+    }
+
+    // Actualizar Letras de arma que caen
+    for (let i = letterDrops.length - 1; i >= 0; i--) {
+        const ld = letterDrops[i];
+        ld.y += ld.vy;
+
+        // Imán ecológico (especialmente fuerte en ECO-FALCON)
+        const dist = Math.hypot(player.x - ld.x, player.y - ld.y);
+        if (dist < player.ship.magnetRadius) {
+            ld.x += ((player.x - ld.x) / (dist || 1)) * 4.2;
+            ld.y += ((player.y - ld.y) / (dist || 1)) * 4.2;
+        }
+
+        if (ld.y > LOGICAL_HEIGHT + 30) {
+            letterDrops.splice(i, 1);
+            continue;
+        }
+
+        if (dist < 28) {
+            sfx.contraPickup();
+            addScore(400);
+            if (ld.letter === 'B') {
+                player.shieldActive = true;
+                spawnFloatingText('¡BARRERA ACTIVADA!', player.x, player.y - 26, '#38BDF8');
+            } else {
+                player.weapon = ld.letter;
+                const durationMult = player.ship.id === 'phoenix' ? 1.5 : 1.0;
+                player.weaponTimer = Math.round(900 * durationMult); // 15s (22.5s en Bio Phoenix)
+                const wName = WEAPON_INFO[ld.letter].name;
+                spawnFloatingText(`[${ld.letter}] ${wName}!`, player.x, player.y - 26, ld.color);
+            }
+            updateHUD();
+            letterDrops.splice(i, 1);
+        }
+    }
+
+    // 3. Actualizar disparos del jugador y colisiones con Cápsulas Contra
+    for (let i = playerBullets.length - 1; i >= 0; i--) {
+        const b = playerBullets[i];
+
+        if (b.kind === 'fireball') {
+            b.phase += 0.35;
+            b.y += b.vy;
+            b.x = b.baseX + Math.sin(b.phase) * 16;
+        } else if (b.kind === 'homing') {
+            // Buscar el enemigo más cercano
+            let nearest = null;
+            let bestDist = Infinity;
+            for (const en of enemies) {
+                const d = Math.hypot(en.x - b.x, en.y - b.y);
+                if (d < bestDist) {
+                    bestDist = d;
+                    nearest = en;
+                }
+            }
+            if (nearest) {
+                const desiredVx = ((nearest.x - b.x) / (bestDist || 1)) * 8.5;
+                const desiredVy = ((nearest.y - b.y) / (bestDist || 1)) * 8.5;
+                b.vx += (desiredVx - b.vx) * 0.16;
+                b.vy += (desiredVy - b.vy) * 0.16;
+            }
+            b.x += b.vx;
+            b.y += b.vy;
+        } else {
+            b.x += b.vx;
+            b.y += b.vy;
+        }
+
+        if (b.y < -30 || b.y > LOGICAL_HEIGHT + 30 || b.x < -30 || b.x > LOGICAL_WIDTH + 30) {
+            playerBullets.splice(i, 1);
+            continue;
+        }
+
+        // Impacto contra Cápsula voladora Contra
+        let hitPod = false;
+        for (let pIdx = weaponPods.length - 1; pIdx >= 0; pIdx--) {
+            const pod = weaponPods[pIdx];
+            if (Math.abs(b.x - pod.x) < 20 && Math.abs(b.y - pod.y) < 16) {
+                sfx.podHit();
+                spawnExplosion(pod.x, pod.y, '#FACC15');
+                dropContraLetter(pod.x, pod.y, pod.letter);
+                weaponPods.splice(pIdx, 1);
+                if (!b.pierce) {
+                    playerBullets.splice(i, 1);
+                    hitPod = true;
+                }
+                break;
+            }
+        }
+        if (hitPod) continue;
+    }
+
+    // 4. Formación Galaga y ataques en picada
+    formationOffsetX += 0.9 * formationDirection;
+    if (formationOffsetX > 36) formationDirection = -1;
+    if (formationOffsetX < -36) formationDirection = 1;
+
+    diveTimer--;
+    if (diveTimer <= 0) {
+        const readyEnemies = enemies.filter(e => !e.isBoss && e.state === 'formation');
+        if (readyEnemies.length > 0) {
+            const diver = readyEnemies[Math.floor(Math.random() * readyEnemies.length)];
+            diver.state = 'diving';
+            diver.divePhase = 0;
+            diver.startX = diver.x;
+            diver.startY = diver.y;
+            diver.targetX = player.x;
+        }
+        diveTimer = Math.max(38, 140 - currentLevel * 0.65);
+    }
+
+    // 5. Actualizar Enemigos y Jefes
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        if (e.hitFlash > 0) e.hitFlash--;
+
+        if (e.isBoss) {
+            updateBoss(e);
+        } else {
+            updateNormalEnemy(e);
+        }
+
+        // Colisión balas jugador vs enemigo / jefe
+        for (let bIdx = playerBullets.length - 1; bIdx >= 0; bIdx--) {
+            const b = playerBullets[bIdx];
+            if (b.pierce && b.hitIds && b.hitIds.has(e)) continue;
+
+            // Primero comprobar si impacta en torretas destructibles del Jefe
+            let hitTurret = false;
+            if (e.isBoss && e.turrets && e.turrets.length > 0) {
+                for (let tIdx = e.turrets.length - 1; tIdx >= 0; tIdx--) {
+                    const t = e.turrets[tIdx];
+                    const tx = e.x + t.offsetX;
+                    const ty = e.y + t.offsetY;
+                    if (Math.abs(b.x - tx) < 18 && Math.abs(b.y - ty) < 18) {
+                        t.hp -= b.dmg;
+                        sfx.enemyHit();
+                        if (t.hp <= 0) {
+                            sfx.explosion();
+                            spawnExplosion(tx, ty, '#F97316');
+                            addScore(600);
+                            spawnFloatingText('¡CAÑÓN DESTRUIDO!', tx, ty, '#FACC15');
+                            e.turrets.splice(tIdx, 1);
+                        }
+                        if (!b.pierce) playerBullets.splice(bIdx, 1);
+                        else b.hitIds.add(e);
+                        hitTurret = true;
+                        break;
+                    }
+                }
+            }
+            if (hitTurret) continue;
+
+            // Comprobar cuerpo principal del enemigo o jefe
+            if (
+                Math.abs(b.x - e.x) < (e.width / 2 + b.w / 2) &&
+                Math.abs(b.y - e.y) < (e.height / 2 + b.h / 2)
+            ) {
+                // Satélite Escudado bloquea disparos frontales cuando su escudo está cerrado
+                if (!e.isBoss && e.type === 'satellite' && !e.shieldOpen && !b.pierce) {
+                    sfx.enemyHit();
+                    spawnFloatingText('ESCUDO', e.x, e.y - 16, '#38BDF8');
+                    playerBullets.splice(bIdx, 1);
+                    continue;
+                }
+
+                e.hp -= b.dmg;
+                e.hitFlash = 4;
+
+                // Si es Fireball Plasma [F], daño en área
+                if (b.kind === 'fireball') {
+                    spawnExplosion(b.x, b.y, '#F97316');
+                    for (const other of enemies) {
+                        if (other !== e && Math.hypot(other.x - b.x, other.y - b.y) < b.splash) {
+                            other.hp -= b.dmg * 0.6;
+                            other.hitFlash = 3;
+                        }
+                    }
+                }
+
+                if (b.pierce) {
+                    b.hitIds.add(e);
+                } else {
+                    playerBullets.splice(bIdx, 1);
+                }
+
+                if (e.hp <= 0) {
+                    destroyEnemy(i);
+                } else {
+                    sfx.enemyHit();
+                }
+                break;
+            }
+        }
+
+        // Colisión directa enemigo vs jugador
+        if (enemies[i] && player.invulnerable <= 0) {
+            if (
+                Math.abs(player.x - e.x) < (player.width * 0.38 + e.width * 0.38) &&
+                Math.abs(player.y - e.y) < (player.height * 0.38 + e.height * 0.38)
+            ) {
+                if (!e.isBoss) {
+                    destroyEnemy(i, false);
+                }
+                damagePlayer();
+            }
+        }
+    }
+
+    // 6. Actualizar Balas Enemigas
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+        eb.x += eb.vx;
+        eb.y += eb.vy;
+
+        if (eb.y > LOGICAL_HEIGHT + 25 || eb.x < -25 || eb.x > LOGICAL_WIDTH + 25) {
+            enemyBullets.splice(i, 1);
+            continue;
+        }
+
+        if (player.invulnerable <= 0) {
+            if (Math.abs(eb.x - player.x) < 14 && Math.abs(eb.y - player.y) < 15) {
+                enemyBullets.splice(i, 1);
+                damagePlayer();
+            }
+        }
+    }
+
+    // 7. Partículas y textos flotantes
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.life--;
+        if (pt.life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y -= 0.85;
+        ft.life--;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // 8. Comprobar victoria del nivel
+    if (enemies.length === 0) {
+        completeCurrentLevel();
+    }
+}
+
+function updateNormalEnemy(e) {
+    if (e.state === 'entering') {
+        e.enterProgress += 0.03;
+        if (e.enterProgress >= 0) {
+            const t = Math.min(1, e.enterProgress);
+            const loopR = (1 - t) * 90;
+            const ang = t * Math.PI * 2 * e.enterSide;
+            const tx = e.homeX + formationOffsetX;
+            e.x = tx + Math.sin(ang) * loopR;
+            e.y = -20 + (e.homeY + 20) * t + Math.cos(ang) * (loopR * 0.4);
+            if (t >= 1) e.state = 'formation';
+        }
+        return;
+    }
+
+    // Satélite alterna escudo abierto/cerrado cada 2 segundos
+    if (e.type === 'satellite') {
+        e.shieldOpen = (Math.floor(frameCount / 90) % 2 === 0);
+    }
+
+    if (e.state === 'formation') {
+        const zig = e.type === 'smog' ? Math.sin(frameCount * 0.14 + e.homeY) * 14 : 0;
+        e.x = e.homeX + formationOffsetX + zig;
+        e.y = e.homeY + Math.sin(frameCount * 0.06 + e.homeX * 0.05) * 3;
+        return;
+    }
+
+    if (e.state === 'diving') {
+        e.divePhase += 0.024;
+
+        if (e.type === 'bulldozer') {
+            // Embiste recto a gran velocidad
+            e.y += e.diveSpeed * 1.45;
+        } else if (e.type === 'battery') {
+            // Kamikaze persigue la X del jugador
+            e.x += Math.sign(player.x - e.x) * 2.4;
+            e.y += e.diveSpeed * 1.25;
+        } else if (e.type === 'smog') {
+            // Zigzag rápido
+            e.x += Math.sin(e.divePhase * 14) * 5.2;
+            e.y += e.diveSpeed * 1.05;
+        } else {
+            // Picada curva clásica Galaga
+            const curve = Math.sin(e.divePhase * Math.PI * 2) * 70;
+            e.x = e.startX + (e.targetX - e.startX) * Math.min(1, e.divePhase * 1.1) + curve;
+            e.y += e.diveSpeed;
+        }
+
+        // Disparos especiales según tipo de enemigo durante la picada
+        if (Math.abs(e.divePhase - 0.32) < 0.02) {
+            const bSpeed = 3.6 + Math.min(2.2, currentLevel * 0.015);
+            if (e.type === 'factory') {
+                // Ráfaga triple hacia abajo
+                [-0.25, 0, 0.25].forEach(a => {
+                    enemyBullets.push({ x: e.x, y: e.y + 12, vx: Math.sin(a) * bSpeed, vy: Math.cos(a) * bSpeed, color: '#EF4444' });
+                });
+            } else if (e.type === 'parasite') {
+                // Invoca un micro-dron contaminante
+                enemies.push(createEnemyEntity('microplastic', e.x, e.y + 15, 0.9, currentLevel));
+            } else {
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                const d = Math.hypot(dx, dy) || 1;
+                enemyBullets.push({ x: e.x, y: e.y + 12, vx: (dx / d) * bSpeed, vy: (dy / d) * bSpeed, color: '#FB923C' });
+            }
+        }
+
+        if (e.y > LOGICAL_HEIGHT + 30) {
+            e.y = -25;
+            e.state = 'entering';
+            e.enterProgress = 0.2;
+        }
+    }
+}
+
+function updateBoss(b) {
+    if (b.state === 'entering') {
+        b.y += 2.0;
+        if (b.y >= b.homeY) {
+            b.y = b.homeY;
+            b.state = 'formation';
+        }
+        return;
+    }
+
+    b.orbitAngle += 0.04;
+    b.x = LOGICAL_WIDTH / 2 + Math.sin(frameCount * 0.024) * 145;
+    b.y = b.homeY + Math.cos(frameCount * 0.045) * 16;
+
+    b.shootCooldown--;
+    if (b.shootCooldown <= 0) {
+        const pat = b.archetype.pattern;
+        const speed = 3.8 + Math.min(2.2, currentLevel * 0.015);
+
+        if (pat === 'spread_and_turrets') {
+            [-0.35, -0.17, 0, 0.17, 0.35].forEach(a => {
+                enemyBullets.push({ x: b.x, y: b.y + 26, vx: Math.sin(a) * speed, vy: Math.cos(a) * speed, color: '#A855F7' });
+            });
+            b.turrets.forEach(t => {
+                enemyBullets.push({ x: b.x + t.offsetX, y: b.y + t.offsetY + 10, vx: 0, vy: speed * 1.15, color: '#F97316' });
+            });
+        } else if (pat === 'waves_and_minions') {
+            for (let k = -2; k <= 2; k++) {
+                enemyBullets.push({ x: b.x + k * 24, y: b.y + 24, vx: k * 0.8, vy: speed, color: '#38BDF8' });
+            }
+            if (enemies.length < 7) {
+                enemies.push(createEnemyEntity('plastic', b.x, b.y + 30, 0.8, currentLevel));
+            }
+        } else if (pat === 'spiral_burst') {
+            for (let k = 0; k < 6; k++) {
+                const ang = b.orbitAngle * 2 + (Math.PI * 2 * k) / 6;
+                enemyBullets.push({ x: b.x, y: b.y, vx: Math.cos(ang) * 3.4, vy: Math.sin(ang) * 3.4 + 1.5, color: '#4ADE80' });
+            }
+        } else if (pat === 'laser_and_dash') {
+            // Ráfaga central concentrada
+            for (let k = -1; k <= 1; k++) {
+                enemyBullets.push({ x: b.x + k * 10, y: b.y + 26, vx: 0, vy: speed * 1.35, color: '#EF4444' });
+            }
+        } else if (pat === 'acid_rain') {
+            for (let k = 0; k < 5; k++) {
+                const rx = 40 + Math.random() * (LOGICAL_WIDTH - 80);
+                enemyBullets.push({ x: rx, y: b.y + 20, vx: (Math.random() - 0.5) * 1.2, vy: speed * 1.1, color: '#A3E635' });
+            }
+        } else {
+            // Overlord final: abanico + espiral
+            [-0.4, -0.2, 0, 0.2, 0.4].forEach(a => {
+                enemyBullets.push({ x: b.x, y: b.y + 26, vx: Math.sin(a) * speed, vy: Math.cos(a) * speed, color: '#F43F5E' });
+            });
+        }
+
+        b.shootCooldown = Math.max(42, 88 - Math.floor(currentLevel / 5));
+    }
+}
+
+function destroyEnemy(index, awardPoints = true) {
+    const e = enemies[index];
+    sfx.explosion();
+    spawnExplosion(e.x, e.y, e.isBoss ? '#FACC15' : '#4ADE80');
+
+    // Monstruo de Plástico se divide en 2 microplásticos rápidos al morir
+    if (!e.isBoss && e.type === 'plastic') {
+        const m1 = createEnemyEntity('microplastic', e.x - 16, e.y, 1, currentLevel);
+        const m2 = createEnemyEntity('microplastic', e.x + 16, e.y, 1, currentLevel);
+        m1.x = e.x - 14; m1.y = e.y; m1.state = 'diving'; m1.divePhase = 0.2; m1.startX = m1.x; m1.targetX = player.x - 30;
+        m2.x = e.x + 14; m2.y = e.y; m2.state = 'diving'; m2.divePhase = 0.2; m2.startX = m2.x; m2.targetX = player.x + 30;
+        enemies.push(m1, m2);
+    }
+
+    if (awardPoints) {
+        const pts = e.state === 'diving' ? e.points * 2 : e.points;
+        addScore(pts);
+        spawnFloatingText(`+${pts}`, e.x, e.y, e.isBoss ? '#FACC15' : '#86EFAC');
+    }
+
+    enemies.splice(index, 1);
+}
+
+function damagePlayer() {
+    if (player.shieldActive) {
+        player.shieldActive = false;
+        player.invulnerable = 75;
+        sfx.contraPickup();
+        spawnFloatingText('¡ESCUDO ABSORBIÓ IMPACTO!', player.x, player.y - 25, '#38BDF8');
+        updateHUD();
+        return;
+    }
+
+    sfx.playerHit();
+    spawnExplosion(player.x, player.y, '#EF4444');
+    lives--;
+    player.weapon = 'N';
+    player.weaponTimer = 0;
+    updateHUD();
+
+    if (lives <= 0) {
+        gameState = STATE.GAME_OVER;
+        document.getElementById('go-score').textContent = score;
+        document.getElementById('go-level').textContent = `${currentLevel} / 150`;
+        document.getElementById('go-highscore').textContent = savedData.highScore;
+        document.getElementById('screen-gameover').classList.remove('hidden');
+    } else {
+        player.invulnerable = 120;
+    }
+}
+
+function completeCurrentLevel() {
+    sfx.stageClear();
+    const bonus = 500 + currentLevel * 30;
+    addScore(bonus);
+
+    if (currentLevel < 150 && currentLevel + 1 > savedData.unlockedLevel) {
+        savedData.unlockedLevel = currentLevel + 1;
+        saveProgress();
+    }
+
+    if (currentLevel >= 150) {
+        gameState = STATE.VICTORY;
+        document.getElementById('vic-score').textContent = String(score).padStart(6, '0');
+        document.getElementById('screen-victory').classList.remove('hidden');
+        return;
+    }
+
+    gameState = STATE.STAGE_CLEAR;
+    const sdg = getSDGForLevel(currentLevel);
+
+    document.getElementById('clear-title').textContent = `NIVEL ${currentLevel} SUPERADO`;
+    document.getElementById('clear-sdg-card').style.borderColor = sdg.color;
+    const numBadge = document.getElementById('clear-sdg-number');
+    numBadge.textContent = `ODS ${sdg.id}`;
+    numBadge.style.backgroundColor = sdg.color;
+    document.getElementById('clear-sdg-name').textContent = sdg.name;
+    document.getElementById('clear-sdg-fact').textContent = sdg.fact;
+    document.getElementById('clear-bonus').textContent = bonus;
+
+    document.getElementById('screen-stage-clear').classList.remove('hidden');
+}
+
+// ----------------------------------------------------------------------------
+// 11. RENDERIZADO PIXEL ART EN CANVAS
+// ----------------------------------------------------------------------------
+function draw() {
+    ctx.fillStyle = '#020308';
+    ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+
+    updateAndDrawStars();
+    if (gameState === STATE.MENU) return;
+
+    // 1. Dibujar Cápsulas Voladoras estilo Contra (con alas animadas)
+    for (const pod of weaponPods) {
+        const wingOpen = Math.floor(frameCount / 6) % 2 === 0;
+        ctx.fillStyle = '#991B1B';
+        ctx.fillRect(Math.round(pod.x - 14), Math.round(pod.y - 10), 28, 20);
+        ctx.fillStyle = '#EF4444';
+        ctx.fillRect(Math.round(pod.x - 10), Math.round(pod.y - 8), 20, 16);
+        // Alas mecánicas
+        ctx.fillStyle = '#E2E8F0';
+        const wingH = wingOpen ? 16 : 6;
+        ctx.fillRect(Math.round(pod.x - 20), Math.round(pod.y - wingH / 2), 6, wingH);
+        ctx.fillRect(Math.round(pod.x + 14), Math.round(pod.y - wingH / 2), 6, wingH);
+        // Núcleo brillante
+        ctx.fillStyle = frameCount % 8 < 4 ? '#FACC15' : '#FFFFFF';
+        ctx.fillRect(Math.round(pod.x - 4), Math.round(pod.y - 4), 8, 8);
+    }
+
+    // 2. Dibujar Letras de Arma Contra ([S] [L] [M] [F] [H] [B])
+    for (const ld of letterDrops) {
+        ctx.fillStyle = '#0F172A';
+        ctx.fillRect(Math.round(ld.x - 14), Math.round(ld.y - 12), 28, 24);
+        ctx.strokeStyle = frameCount % 10 < 5 ? ld.color : '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(Math.round(ld.x - 14), Math.round(ld.y - 12), 28, 24);
+
+        ctx.fillStyle = ld.color;
+        ctx.font = 'bold 12px "Press Start 2P", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ld.letter, Math.round(ld.x + 1), Math.round(ld.y + 1));
+    }
+
+    // 3. Dibujar Nave del Jugador (y Dron aliado si es BIO PHOENIX)
+    if (player.invulnerable <= 0 || Math.floor(frameCount / 4) % 2 === 0) {
+        drawPixelSprite(ctx, player.ship.sprite, player.x, player.y, 3);
+
+        if (player.ship.hasWingman) {
+            const wy = player.y + 6 + Math.sin(frameCount * 0.15) * 3;
+            drawPixelSprite(ctx, WINGMAN_SPRITE, player.x + 28, wy, 2.5);
+        }
+
+        if (player.shieldActive) {
+            ctx.strokeStyle = frameCount % 10 < 5 ? '#38BDF8' : '#4ADE80';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(player.x - 27, player.y - 26, 54, 52);
+        }
+    }
+
+    // 4. Dibujar Disparos del Jugador
+    for (const b of playerBullets) {
+        ctx.fillStyle = b.color;
+        if (b.kind === 'spread' || b.kind === 'fireball') {
+            ctx.fillRect(Math.round(b.x - b.w / 2), Math.round(b.y - b.h / 2), b.w, b.h);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(Math.round(b.x - 2), Math.round(b.y - 2), 4, 4);
+        } else {
+            ctx.fillRect(Math.round(b.x - b.w / 2), Math.round(b.y - b.h / 2), b.w, b.h);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - b.h / 2), 2, b.h - 2);
+        }
+    }
+
+    // 5. Dibujar Enemigos y Jefes
+    const animIdx = Math.floor(frameCount / 16) % 2;
+    for (const e of enemies) {
+        const tint = e.hitFlash > 0 ? '#FFFFFF' : null;
+
+        if (e.isBoss) {
+            drawPixelSprite(ctx, e.archetype.sprite, e.x, e.y, e.archetype.pixelSize, tint);
+
+            // Torretas destructibles laterales si el jefe las tiene
+            if (e.turrets) {
+                e.turrets.forEach(t => {
+                    const tx = Math.round(e.x + t.offsetX);
+                    const ty = Math.round(e.y + t.offsetY);
+                    ctx.fillStyle = '#F97316';
+                    ctx.fillRect(tx - 10, ty - 10, 20, 20);
+                    ctx.fillStyle = '#EF4444';
+                    ctx.fillRect(tx - 5, ty - 5, 10, 10);
+                });
+            }
+
+            // Anillo orbital si el jefe lo tiene
+            if (e.archetype.hasOrbitShield) {
+                for (let o = 0; o < 4; o++) {
+                    const oa = e.orbitAngle + (Math.PI * 2 * o) / 4;
+                    const ox = Math.round(e.x + Math.cos(oa) * 68);
+                    const oy = Math.round(e.y + Math.sin(oa) * 42);
+                    ctx.fillStyle = '#4ADE80';
+                    ctx.fillRect(ox - 6, oy - 6, 12, 12);
+                }
+            }
+
+            // Barra de vida superior del Jefe
+            const barW = 240;
+            const barH = 10;
+            const bx = Math.round(LOGICAL_WIDTH / 2 - barW / 2);
+            const by = 14;
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+            ctx.fillRect(bx - 4, by - 4, barW + 8, barH + 22);
+            ctx.strokeStyle = '#EF4444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx - 4, by - 4, barW + 8, barH + 22);
+
+            ctx.fillStyle = '#EF4444';
+            ctx.fillRect(bx, by, Math.max(0, (e.hp / e.maxHp) * barW), barH);
+
+            ctx.fillStyle = '#FACC15';
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(e.archetype.name, LOGICAL_WIDTH / 2, by + 22);
+        } else {
+            const sprPair = ENEMY_SPRITES[e.type] || ENEMY_SPRITES.toxic;
+            const pSize = e.type === 'microplastic' ? 2.4 : 2.8;
+            drawPixelSprite(ctx, sprPair[animIdx], e.x, e.y, pSize, tint);
+
+            // Escudo visual en Satélite Basura
+            if (e.type === 'satellite' && !e.shieldOpen) {
+                ctx.fillStyle = '#38BDF8';
+                ctx.fillRect(Math.round(e.x - 18), Math.round(e.y + 12), 36, 4);
+            }
+            // Aviso rojo de embestida en Bulldozer
+            if (e.type === 'bulldozer' && e.state === 'diving') {
+                ctx.fillStyle = '#EF4444';
+                ctx.fillRect(Math.round(e.x - 16), Math.round(e.y + 12), 32, 3);
+            }
+        }
+    }
+
+    // 6. Dibujar Balas Enemigas
+    for (const eb of enemyBullets) {
+        ctx.fillStyle = eb.color;
+        ctx.fillRect(Math.round(eb.x - 3), Math.round(eb.y - 5), 6, 10);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(Math.round(eb.x - 1), Math.round(eb.y - 3), 2, 6);
+    }
+
+    // 7. Partículas y Textos Flotantes
+    for (const pt of particles) {
+        ctx.fillStyle = pt.color;
+        ctx.fillRect(Math.round(pt.x), Math.round(pt.y), pt.size, pt.size);
+    }
+
+    ctx.font = '9px "Press Start 2P", monospace';
+    ctx.textAlign = 'center';
+    for (const ft of floatingTexts) {
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, Math.round(ft.x), Math.round(ft.y));
+    }
+
+    // 8. Banner inicial de nivel y ODS
+    if (levelBannerTimer > 0) {
+        const sdg = getSDGForLevel(currentLevel);
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.86)';
+        ctx.fillRect(26, LOGICAL_HEIGHT / 2 - 52, LOGICAL_WIDTH - 52, 104);
+        ctx.strokeStyle = sdg.color;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(26, LOGICAL_HEIGHT / 2 - 52, LOGICAL_WIDTH - 52, 104);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#38BDF8';
+        ctx.font = '14px "Press Start 2P", monospace';
+        ctx.fillText(`NIVEL ${currentLevel} / 150`, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 - 18);
+
+        ctx.fillStyle = '#FACC15';
+        ctx.font = '9px "Press Start 2P", monospace';
+        const label = `ODS ${sdg.id}: ${sdg.name}`;
+        ctx.fillText(label.slice(0, 34), LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 12);
+
+        if (currentLevel % 5 === 0) {
+            const bossObj = enemies.find(en => en.isBoss);
+            ctx.fillStyle = '#EF4444';
+            ctx.font = '8px "Press Start 2P", monospace';
+            ctx.fillText(`¡JEFE: ${bossObj ? bossObj.archetype.name : 'AMENAZA ODS'}!`, LOGICAL_WIDTH / 2, LOGICAL_HEIGHT / 2 + 34);
+        }
+    }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// ----------------------------------------------------------------------------
+// 12. HUD, CONTROLES RATÓN Y NAVEGACIÓN ENTRE PANTALLAS
+// ----------------------------------------------------------------------------
+function updateHUD() {
+    document.getElementById('hud-score').textContent = String(score).padStart(6, '0');
+    if (score > savedData.highScore) {
+        savedData.highScore = score;
+        saveProgress();
+    }
+    document.getElementById('hud-highscore').textContent = String(savedData.highScore).padStart(6, '0');
+    document.getElementById('hud-level').textContent = `${currentLevel}/150`;
+
+    const sdg = getSDGForLevel(currentLevel);
+    const badge = document.getElementById('hud-sdg-badge');
+    badge.textContent = `ODS ${sdg.id}`;
+    badge.style.backgroundColor = sdg.color;
+    document.getElementById('hud-sdg-name').textContent = sdg.name;
+
+    // Arma Contra activa
+    const wInfo = WEAPON_INFO[player.weapon] || WEAPON_INFO['N'];
+    const wBadge = document.getElementById('hud-weapon-badge');
+    wBadge.textContent = wInfo.code;
+    wBadge.style.backgroundColor = wInfo.color;
+    document.getElementById('hud-weapon-name').textContent = wInfo.name;
+
+    // Escudo
+    const shIcon = document.getElementById('hud-shield-icon');
+    if (player.shieldActive) shIcon.classList.remove('hidden');
+    else shIcon.classList.add('hidden');
+
+    // Vidas
+    const livesContainer = document.getElementById('hud-lives');
+    livesContainer.innerHTML = '';
+    for (let i = 0; i < Math.max(0, lives); i++) {
+        const shipIcon = document.createElement('span');
+        shipIcon.className = 'inline-block w-2.5 h-3 border border-white';
+        shipIcon.style.backgroundColor = player.ship.color;
+        shipIcon.style.clipPath = 'polygon(50% 0%, 100% 100%, 50% 80%, 0% 100%)';
+        livesContainer.appendChild(shipIcon);
+    }
+}
+
+function addScore(pts) {
+    score += pts;
+    updateHUD();
+}
+
+function spawnFloatingText(text, x, y, color = '#FACC15') {
+    floatingTexts.push({ text, x, y, color, life: 45 });
+}
+
+function spawnExplosion(x, y, mainColor = '#FACC15') {
+    const colors = [mainColor, '#FFFFFF', '#F97316', '#EF4444', '#4ADE80'];
+    for (let i = 0; i < 16; i++) {
+        const angle = (Math.PI * 2 * i) / 16 + Math.random() * 0.3;
+        const speed = 1.2 + Math.random() * 3.4;
+        particles.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            size: Math.random() < 0.5 ? 3 : 4,
+            color: colors[i % colors.length],
+            life: 20 + Math.floor(Math.random() * 14)
+        });
+    }
+}
+
+function updatePointerPosition(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = LOGICAL_WIDTH / rect.width;
+    targetMouseX = (clientX - rect.left) * scaleX;
+}
+
+canvas.addEventListener('mousemove', (e) => updatePointerPosition(e.clientX));
+
+canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+        sfx.init();
+        updatePointerPosition(e.clientX);
+        isMouseDown = true;
+        firePlayerWeapon();
+    }
+});
+
+window.addEventListener('mouseup', (e) => {
+    if (e.button === 0) isMouseDown = false;
+});
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    sfx.init();
+    if (e.touches.length > 0) {
+        updatePointerPosition(e.touches[0].clientX);
+        isMouseDown = true;
+        firePlayerWeapon();
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (e.touches.length > 0) updatePointerPosition(e.touches[0].clientX);
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => { isMouseDown = false; });
+
+window.addEventListener('keydown', (e) => {
+    keysPressed[e.code] = true;
+    if (e.code === 'Space') {
+        e.preventDefault();
+        firePlayerWeapon();
+    }
+});
+window.addEventListener('keyup', (e) => { keysPressed[e.code] = false; });
+
+function startNewGame(startLvl = 1) {
+    sfx.init();
+    score = 0;
+    lives = 3;
+    player.x = LOGICAL_WIDTH / 2;
+    targetMouseX = LOGICAL_WIDTH / 2;
+    player.invulnerable = 60;
+    player.shieldActive = false;
+
+    applyShipToPlayer(getSelectedShip(), true);
+
+    document.getElementById('screen-start').classList.add('hidden');
+    document.getElementById('screen-levels').classList.add('hidden');
+    document.getElementById('screen-gameover').classList.add('hidden');
+    document.getElementById('screen-victory').classList.add('hidden');
+    document.getElementById('screen-stage-clear').classList.add('hidden');
+    document.getElementById('screen-hangar-modal').classList.add('hidden');
+
+    gameState = STATE.PLAYING;
+    setupLevel(startLvl);
+}
+
+function buildLevelGrid() {
+    const grid = document.getElementById('levels-grid');
+    grid.innerHTML = '';
+
+    for (let i = 1; i <= 150; i++) {
+        const sdg = getSDGForLevel(i);
+        const isMega = (i % 10 === 0);
+        const isBoss = (i % 5 === 0);
+        const btn = document.createElement('button');
+        btn.className = 'p-2 text-[9px] border-2 text-center cursor-pointer transition-transform active:scale-95 flex flex-col items-center justify-center gap-1';
+        btn.style.borderColor = sdg.color;
+        btn.style.backgroundColor = '#090d16';
+        btn.style.color = '#FFFFFF';
+        btn.title = `Nivel ${i} - ODS ${sdg.id}: ${sdg.name}`;
+
+        const badgeIcon = isMega ? '👑' : (isBoss ? '★' : '');
+        btn.innerHTML = `
+            <span class="font-bold">${i}${badgeIcon}</span>
+            <span class="text-[7px] px-1" style="background:${sdg.color}">ODS${sdg.id}</span>
+        `;
+
+        btn.addEventListener('click', () => startNewGame(i));
+        grid.appendChild(btn);
+    }
+}
+
+document.getElementById('btn-play').addEventListener('click', () => startNewGame(1));
+document.getElementById('btn-continue').addEventListener('click', () => startNewGame(savedData.unlockedLevel));
+
+document.getElementById('btn-open-levels').addEventListener('click', () => {
+    buildLevelGrid();
+    document.getElementById('screen-levels').classList.remove('hidden');
+});
+document.getElementById('btn-close-levels').addEventListener('click', () => {
+    document.getElementById('screen-levels').classList.add('hidden');
+});
+
+document.getElementById('btn-hangar-mid').addEventListener('click', () => {
+    if (gameState === STATE.PLAYING) {
+        buildShipSelectors();
+        gameState = STATE.PAUSED_HANGAR;
+        document.getElementById('screen-hangar-modal').classList.remove('hidden');
+    }
+});
+document.getElementById('btn-close-hangar').addEventListener('click', () => {
+    document.getElementById('screen-hangar-modal').classList.add('hidden');
+    if (gameState === STATE.PAUSED_HANGAR) gameState = STATE.PLAYING;
+});
+
+document.getElementById('btn-next-level').addEventListener('click', () => {
+    document.getElementById('screen-stage-clear').classList.add('hidden');
+    gameState = STATE.PLAYING;
+    setupLevel(currentLevel + 1);
+});
+
+document.getElementById('screen-stage-clear').addEventListener('mousedown', (e) => {
+    if (e.button === 0 && e.target.id !== 'btn-next-level') {
+        document.getElementById('screen-stage-clear').classList.add('hidden');
+        gameState = STATE.PLAYING;
+        setupLevel(currentLevel + 1);
+    }
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+    lives = 3;
+    score = Math.floor(score * 0.5);
+    player.invulnerable = 60;
+    applyShipToPlayer(getSelectedShip(), true);
+    document.getElementById('screen-gameover').classList.add('hidden');
+    gameState = STATE.PLAYING;
+    setupLevel(currentLevel);
+});
+
+document.getElementById('btn-go-menu').addEventListener('click', () => {
+    document.getElementById('screen-gameover').classList.add('hidden');
+    refreshMenuButtons();
+    document.getElementById('screen-start').classList.remove('hidden');
+    gameState = STATE.MENU;
+});
+
+document.getElementById('btn-vic-menu').addEventListener('click', () => {
+    document.getElementById('screen-victory').classList.add('hidden');
+    refreshMenuButtons();
+    document.getElementById('screen-start').classList.remove('hidden');
+    gameState = STATE.MENU;
+});
+
+document.getElementById('btn-sound').addEventListener('click', (e) => {
+    const muted = sfx.toggleMute();
+    e.target.textContent = muted ? '🔇' : '🔊';
+});
+
+function refreshMenuButtons() {
+    buildShipSelectors();
+    const btnCont = document.getElementById('btn-continue');
+    const btnLvl = document.getElementById('btn-open-levels');
+    if (savedData.unlockedLevel > 1) {
+        btnCont.classList.remove('hidden');
+        document.getElementById('continue-lvl-num').textContent = savedData.unlockedLevel;
+        btnLvl.classList.remove('col-span-2');
+    } else {
+        btnCont.classList.add('hidden');
+        btnLvl.classList.add('col-span-2');
+    }
+    updateHUD();
+}
+
+window.onload = function () {
+    initStars();
+    refreshMenuButtons();
+    gameLoop();
+};
+</script>
+</body>
+</html>
